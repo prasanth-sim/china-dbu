@@ -1,0 +1,91 @@
+#!/bin/bash
+set -Eeuo pipefail
+trap 'echo "[❌ ERROR] Line $LINENO: $BASH_COMMAND (exit $?)"' ERR
+
+# ==============================================================================
+# SCRIPT METADATA AND CONFIGURATION
+# ==============================================================================
+# This script builds the 'spriced-platform-data-management-layer' Maven project.
+# It clones/updates the repository, runs a clean install, copies the resulting
+# JAR file, and creates a 'latest' symlink for easy access.
+#
+# Arguments:
+#   $1: Branch name (default: 'main')
+#   $2: Base directory for repos, builds, and logs
+# ==============================================================================
+
+# === INPUT ARGUMENTS ===
+readonly BRANCH="${1:-main}"
+readonly BASE_DIR="${2:-$HOME/automation_workspace}"
+
+# === REPO CONFIGURATION ===
+# --- UPDATED: Changed REPO and GIT_URL to match the new project.
+readonly REPO="spriced-platform-data-management-layer"
+readonly GIT_URL="https://github.com/simaiserver/$REPO.git"
+# --- UPDATED: The artifact name is now set to the exact filename.
+readonly ARTIFACT_NAME="transaction-management-0.0.1-SNAPSHOT.jar"
+
+# === DYNAMIC PATHS ===
+readonly DATE_TAG=$(date +"%Y%m%d_%H%M%S")
+readonly REPO_DIR="$BASE_DIR/repos/$REPO"
+readonly BUILD_BASE="$BASE_DIR/builds/$REPO"
+readonly LOG_DIR="$BASE_DIR/automationlogs"
+readonly LOG_FILE="$LOG_DIR/${REPO}_${DATE_TAG}.log"
+readonly BUILD_DIR="$BUILD_BASE/${BRANCH//\//_}_${DATE_TAG}"
+
+# Create necessary directories
+mkdir -p "$REPO_DIR" "$BUILD_BASE" "$LOG_DIR"
+
+# Tee output to log file and stdout
+exec > >(tee -a "$LOG_FILE") 2>&1
+
+echo "🚀 Starting build for [$REPO] on branch [$BRANCH]"
+
+# === Clone or Update Repository ===
+if [[ -d "$REPO_DIR/.git" ]]; then
+    echo "🔁 Updating existing repo at $REPO_DIR"
+    (
+        cd "$REPO_DIR" || exit 1
+        git fetch origin
+        # --- NEW: Check if the branch exists before checking it out.
+        if ! git ls-remote --exit-code --heads "$GIT_URL" "$BRANCH" &> /dev/null; then
+            echo "⚠️ Warning: Branch '$BRANCH' not found on remote. Falling back to 'main'."
+            git checkout "main"
+        else
+            git checkout "$BRANCH"
+        fi
+        git pull origin "$BRANCH"
+    )
+else
+    echo "📥 Cloning repo to $REPO_DIR"
+    git clone "$GIT_URL" "$REPO_DIR"
+    (
+        cd "$REPO_DIR" || exit 1
+        # --- NEW: Check if the branch exists before checking it out.
+        if ! git ls-remote --exit-code --heads "$GIT_URL" "$BRANCH" &> /dev/null; then
+            echo "⚠️ Warning: Branch '$BRANCH' not found on remote. Falling back to 'main'."
+            git checkout "main"
+        else
+            git checkout "$BRANCH"
+        fi
+    )
+fi
+
+# === Build Project ===
+echo "🔨 Running Maven build..."
+cd "$REPO_DIR" || exit 1
+mvn clean install -Dmaven.test.skip=true
+
+# === Artifact Copy ===
+mkdir -p "$BUILD_DIR"
+echo "📦 Searching for and copying built JARs to [$BUILD_DIR]..."
+find "$REPO_DIR" -type f -path "*/target/$ARTIFACT_NAME" -exec cp -v {} "$BUILD_DIR/" \;
+
+# === Update 'latest' Symlink ===
+echo "🔗 Updating 'latest' symlink..."
+ln -sfn "$BUILD_DIR" "$BUILD_BASE/latest"
+
+# === Done ===
+echo "✅ Build complete for [$REPO] on branch [$BRANCH]"
+echo "🗂️ Artifacts stored at: $BUILD_DIR"
+echo "🔗 Latest symlink: $BUILD_BASE/latest"
