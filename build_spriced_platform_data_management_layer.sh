@@ -1,6 +1,6 @@
 #!/bin/bash
 set -Eeuo pipefail
-trap 'echo "[❌ ERROR] Line $LINENO: $BASH_COMMAND (exit $?)"' ERR
+trap 'echo "[ ERROR] Line $LINENO: $BASH_COMMAND (exit $?)"' ERR
 
 # ==============================================================================
 # SCRIPT METADATA AND CONFIGURATION
@@ -10,8 +10,8 @@ trap 'echo "[❌ ERROR] Line $LINENO: $BASH_COMMAND (exit $?)"' ERR
 # JAR file, and creates a 'latest' symlink for easy access.
 #
 # Arguments:
-#   $1: Branch name (default: 'main')
-#   $2: Base directory for repos, builds, and logs
+#    $1: Branch name (default: 'main')
+#    $2: Base directory for repos, builds, and logs
 # ==============================================================================
 
 # === INPUT ARGUMENTS ===
@@ -39,17 +39,17 @@ mkdir -p "$REPO_DIR" "$BUILD_BASE" "$LOG_DIR"
 # Tee output to log file and stdout
 exec > >(tee -a "$LOG_FILE") 2>&1
 
-echo "🚀 Starting build for [$REPO] on branch [$BRANCH]"
+echo "Starting build for [$REPO] on branch [$BRANCH]"
 
 # === Clone or Update Repository ===
 if [[ -d "$REPO_DIR/.git" ]]; then
-    echo "🔁 Updating existing repo at $REPO_DIR"
+    echo "Updating existing repo at $REPO_DIR"
     (
         cd "$REPO_DIR" || exit 1
         git fetch origin
         # --- NEW: Check if the branch exists before checking it out.
         if ! git ls-remote --exit-code --heads "$GIT_URL" "$BRANCH" &> /dev/null; then
-            echo "⚠️ Warning: Branch '$BRANCH' not found on remote. Falling back to 'main'."
+            echo "Warning: Branch '$BRANCH' not found on remote. Falling back to 'main'."
             git checkout "main"
         else
             git checkout "$BRANCH"
@@ -57,13 +57,13 @@ if [[ -d "$REPO_DIR/.git" ]]; then
         git pull origin "$BRANCH"
     )
 else
-    echo "📥 Cloning repo to $REPO_DIR"
+    echo "Cloning repo to $REPO_DIR"
     git clone "$GIT_URL" "$REPO_DIR"
     (
         cd "$REPO_DIR" || exit 1
         # --- NEW: Check if the branch exists before checking it out.
         if ! git ls-remote --exit-code --heads "$GIT_URL" "$BRANCH" &> /dev/null; then
-            echo "⚠️ Warning: Branch '$BRANCH' not found on remote. Falling back to 'main'."
+            echo "Warning: Branch '$BRANCH' not found on remote. Falling back to 'main'."
             git checkout "main"
         else
             git checkout "$BRANCH"
@@ -72,20 +72,21 @@ else
 fi
 
 # === Build Project ===
-echo "🔨 Running Maven build..."
+echo "Running Maven build..."
 cd "$REPO_DIR" || exit 1
 mvn clean install -Dmaven.test.skip=true
 
 # === Artifact Copy ===
 mkdir -p "$BUILD_DIR"
-echo "📦 Searching for and copying built JARs to [$BUILD_DIR]..."
+echo "Searching for and copying built JARs to [$BUILD_DIR]..."
 find "$REPO_DIR" -type f -path "*/target/$ARTIFACT_NAME" -exec cp -v {} "$BUILD_DIR/" \;
 
 # === Update 'latest' Symlink ===
-echo "🔗 Updating 'latest' symlink..."
+echo "Updating 'latest' symlink..."
 ln -sfn "$BUILD_DIR" "$BUILD_BASE/latest"
 
 # === Done ===
-echo "✅ Build complete for [$REPO] on branch [$BRANCH]"
-echo "🗂️ Artifacts stored at: $BUILD_DIR"
-echo "🔗 Latest symlink: $BUILD_BASE/latest"
+echo "Build complete for [$REPO] on branch [$BRANCH]"
+echo "Artifacts stored at: $BUILD_DIR"
+echo "Latest symlink: $BUILD_BASE/latest"
+

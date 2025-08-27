@@ -1,6 +1,6 @@
 #!/bin/bash
 set -Eeuo pipefail
-trap 'echo "[❌ ERROR] Line $LINENO: $BASH_COMMAND (exit $?)"' ERR
+# The original trap command with an emoji was removed as requested.
 
 # ==============================================================================
 # SCRIPT METADATA AND CONFIGURATION
@@ -10,14 +10,14 @@ trap 'echo "[❌ ERROR] Line $LINENO: $BASH_COMMAND (exit $?)"' ERR
 # and saves these choices for future runs.
 #
 # Dependencies:
-#   - Git, Maven, Node.js, GNU Parallel (installable via required-setup.sh)
-#   - Sub-scripts for building individual repos (e.g., build_spriced_ui.sh)
+#    - Git, Maven, Node.js, GNU Parallel (installable via required-setup.sh)
+#    - Sub-scripts for building individual repos (e.g., build_spriced_ui.sh)
 #
 # Configuration files:
-#   - $HOME/.repo_builder_config: Stores user preferences for the next run.
+#    - $HOME/.repo_builder_config: Stores user preferences for the next run.
 #
 # Usage:
-#   Run this script from the project root. It will prompt for all necessary inputs.
+#    Run this script from the project root. It will prompt for all necessary inputs.
 # ==============================================================================
 
 # Determine the directory where this script is located
@@ -58,7 +58,7 @@ load_config() {
     declare -gA BRANCH_CHOICES
 
     if [[ -f "$CONFIG_FILE" ]]; then
-        echo "💡 Loading previous inputs from $CONFIG_FILE..."
+        echo "Loading previous inputs from $CONFIG_FILE..."
         while IFS='=' read -r key value; do
             case "$key" in
                 BASE_INPUT) BASE_INPUT="$value" ;;
@@ -76,55 +76,55 @@ load_config() {
 
 # Clones or updates a repository and checks out the specified branch.
 # Arguments:
-#   $1: The repository name (e.g., "spriced-ui")
-#   $2: The repository URL
-#   $3: The local directory for the repository
-#   $4: The branch name to check out
+#    $1: The repository name (e.g., "spriced-ui")
+#    $2: The repository URL
+#    $3: The local directory for the repository
+#    $4: The branch name to check out
 prepare_repo() {
     local repo_name="$1"
     local repo_url="$2"
     local repo_dir="$3"
     local branch="$4"
 
-    echo "🚀 Checking '$repo_name' repository..."
+    echo "Checking '$repo_name' repository..."
     if [[ -d "$repo_dir/.git" ]]; then
-        echo "🔄 Updating existing repo at $repo_dir"
+        echo "Updating existing repo at $repo_dir"
         (
             cd "$repo_dir" || return 1
             git fetch origin --prune
             git reset --hard HEAD
             git clean -fd
-        ) || { echo "❌ Failed to update $repo_name."; return 1; }
+        ) || { echo "Failed to update $repo_name."; return 1; }
     else
-        echo "📥 Cloning new repo from $repo_url into $repo_dir"
+        echo "Cloning new repo from $repo_url into $repo_dir"
         [[ -d "$repo_dir" && ! -d "$repo_dir/.git" ]] && rm -rf "$repo_dir"
-        git clone "$repo_url" "$repo_dir" || { echo "❌ Failed to clone $repo_name."; return 1; }
+        git clone "$repo_url" "$repo_dir" || { echo "Failed to clone $repo_name."; return 1; }
     fi
 
-    echo "🌿 Switching to branch '$branch' for '$repo_name'..."
+    echo "Switching to branch '$branch' for '$repo_name'..."
     (
         cd "$repo_dir" || return 1
         git fetch origin
         if git rev-parse --verify "origin/$branch" >/dev/null 2>&1; then
             git checkout -B "$branch" "origin/$branch"
         else
-            echo "❌ Remote branch 'origin/$branch' not found. Skipping '$repo_name' build."
+            echo "Remote branch 'origin/$branch' not found. Skipping '$repo_name' build."
             return 1
         fi
-    ) || { echo "❌ Failed to checkout branch '$branch' for '$repo_name'."; return 1; }
-    echo "✅ Repo '$repo_name' prepared successfully on branch '$branch'."
+    ) || { echo "Failed to checkout branch '$branch' for '$repo_name'."; return 1; }
+    echo "Repo '$repo_name' prepared successfully on branch '$branch'."
     return 0
 }
 
 # Helper function for parallel execution.
 # This function is exported so 'parallel' can use it.
 # Arguments:
-#   $1: repo_name
-#   $2: script_path
-#   $3: log_file
-#   $4: tracker_file
-#   $5: base_dir_for_build_script
-#   $6...: Additional arguments for the build script
+#    $1: repo_name
+#    $2: script_path
+#    $3: log_file
+#    $4: tracker_file
+#    $5: base_dir_for_build_script
+#    $6...: Additional arguments for the build script
 build_and_log_repo() {
     local repo_name="$1"
     local script_path="$2"
@@ -184,7 +184,7 @@ fi
 
 # === Prompt for Base Directory ===
 readonly DEFAULT_BASE_INPUT="${BASE_INPUT:-"automation_workspace"}"
-read -rp "📁 Enter base directory for cloning/building/logs (relative to ~) [default: $DEFAULT_BASE_INPUT]: " USER_BASE_INPUT
+read -rp "Enter base directory for cloning/building/logs (relative to ~) [default: $DEFAULT_BASE_INPUT]: " USER_BASE_INPUT
 readonly BASE_INPUT="${USER_BASE_INPUT:-$DEFAULT_BASE_INPUT}"
 readonly BASE_DIR="$HOME/$BASE_INPUT"
 readonly DATE_TAG=$(date +"%Y%m%d_%H%M%S")
@@ -227,14 +227,14 @@ BUILD_SCRIPTS=(
 )
 
 # === Display Repo Selection Menu ===
-echo -e "\n📦 Available Repositories:"
+echo -e "\nAvailable Repositories:"
 for i in "${!REPOS[@]}"; do
     printf "  %d) %s\n" "$((i+1))" "${REPOS[$i]}"
 done
 echo "  0) ALL"
 
 DEFAULT_SELECTED_PROMPT="${SELECTED_REPO_NUMS[*]:-0}"
-read -rp $'\n📌 Enter repo numbers to build (space-separated or 0 for all) [default: '"$DEFAULT_SELECTED_PROMPT"']: ' -a USER_SELECTED_INPUT
+read -rp $'\nEnter repo numbers to build (space-separated or 0 for all) [default: '"$DEFAULT_SELECTED_PROMPT"']: ' -a USER_SELECTED_INPUT
 
 if [[ -n "${USER_SELECTED_INPUT[*]}" ]]; then
     SELECTED_REPO_NUMS=("${USER_SELECTED_INPUT[@]}")
@@ -251,16 +251,16 @@ UI_BUILD_ENV_CHOSEN="${BRANCH_CHOICES["spriced-ui-env"]:-}"
 
 for repo_index_str in "${SELECTED_REPO_NUMS[@]}"; do
     if ! [[ "$repo_index_str" =~ ^[0-9]+$ ]] || (( repo_index_str < 1 || repo_index_str > ${#REPOS[@]} )); then
-        echo "⚠️ Invalid selection: $repo_index_str. Skipping..."
+        echo "Invalid selection: $repo_index_str. Skipping..."
         continue
     fi
     repo_index=$((repo_index_str - 1))
     REPO_NAME="${REPOS[$repo_index]}"
     SELECTED_REPOS_MAP["$REPO_NAME"]=1
-    
+
     # Get default branch from saved config or default map
     DEFAULT_BRANCH="${BRANCH_CHOICES[$REPO_NAME]:-${DEFAULT_BRANCHES[$REPO_NAME]}}"
-    
+
     REPO_DIR="$CLONE_DIR/$REPO_NAME"
 
     # Handle spriced-ui with its special environment prompt
@@ -271,18 +271,18 @@ for repo_index_str in "${SELECTED_REPO_NUMS[@]}"; do
 
         # Prepare spriced-pipeline repo
         if [[ -d "$PIPELINE_DIR/.git" ]]; then
-            echo "🔄 Updating existing spriced-pipeline repo."
+            echo "Updating existing spriced-pipeline repo."
             git -C "$PIPELINE_DIR" pull --quiet
         else
-            echo "📥 Cloning spriced-pipeline repo from $PIPELINE_URL into $PIPELINE_DIR."
-            git clone --quiet "$PIPELINE_URL" "$PIPELINE_DIR" || { echo "❌ Failed to clone spriced-pipeline. Skipping spriced-ui build."; continue; }
+            echo "Cloning spriced-pipeline repo from $PIPELINE_URL into $PIPELINE_DIR."
+            git clone --quiet "$PIPELINE_URL" "$PIPELINE_DIR" || { echo "Failed to clone spriced-pipeline. Skipping spriced-ui build."; continue; }
         fi
 
         # Find available environments
         declare -a AVAILABLE_ENVS=()
         readonly PIPELINE_FRONTEND_DIR="$PIPELINE_DIR/framework/frontend"
         if [ ! -d "$PIPELINE_FRONTEND_DIR" ]; then
-            echo "❌ Directory not found: $PIPELINE_FRONTEND_DIR. Cannot determine environments."
+            echo "Directory not found: $PIPELINE_FRONTEND_DIR. Cannot determine environments."
             unset SELECTED_REPOS_MAP["$REPO_NAME"]; continue
         fi
 
@@ -291,7 +291,7 @@ for repo_index_str in "${SELECTED_REPO_NUMS[@]}"; do
             AVAILABLE_ENVS+=("$env_name")
         done < <(find "$PIPELINE_FRONTEND_DIR" -maxdepth 1 -type d -name "nrp-*" -print0)
 
-        echo -e "\n🌐 Choose environment for spriced-ui:"
+        echo -e "\nChoose environment for spriced-ui:"
         for env_idx in "${!AVAILABLE_ENVS[@]}"; do
             printf "  %d) %s\n" "$((env_idx+1))" "${AVAILABLE_ENVS[$env_idx]}"
         done
@@ -308,28 +308,28 @@ for repo_index_str in "${SELECTED_REPO_NUMS[@]}"; do
         fi
 
         while true; do
-            read -rp "📌 Enter environment number [default: $DEFAULT_ENV_CHOICE]: " ENV_NUM_INPUT
+            read -rp "Enter environment number [default: $DEFAULT_ENV_CHOICE]: " ENV_NUM_INPUT
             ENV_NUM_CHOICE="${ENV_NUM_INPUT:-$DEFAULT_ENV_CHOICE}"
 
             if [[ "$ENV_NUM_CHOICE" =~ ^[0-9]+$ ]] && (( ENV_NUM_CHOICE == ${#AVAILABLE_ENVS[@]} + 1 )); then
-                read -rp "📝 Enter new environment name (e.g., prasanth): " NEW_ENV_NAME
+                read -rp "Enter new environment name (e.g., prasanth): " NEW_ENV_NAME
                 UI_BUILD_ENV_CHOSEN="$NEW_ENV_NAME"
                 if [ -z "$UI_BUILD_ENV_CHOSEN" ]; then
-                    echo "❌ Environment name cannot be empty. Please try again."
+                    echo "Environment name cannot be empty. Please try again."
                     continue
                 fi
                 NEW_ENV_DIR="$PIPELINE_FRONTEND_DIR/nrp-$UI_BUILD_ENV_CHOSEN"
                 if [ -d "$NEW_ENV_DIR" ]; then
-                    echo "❌ Environment '$UI_BUILD_ENV_CHOSEN' already exists. Please choose a different name."
+                    echo "Environment '$UI_BUILD_ENV_CHOSEN' already exists. Please choose a different name."
                     continue
                 fi
                 mkdir -p "$NEW_ENV_DIR"
-                echo "✅ Created directory for new environment '$UI_BUILD_ENV_CHOSEN' in spriced-pipeline."
+                echo "Created directory for new environment '$UI_BUILD_ENV_CHOSEN' in spriced-pipeline."
                 if [ -d "$PIPELINE_FRONTEND_DIR/nrp-dev" ]; then
                     cp -r "$PIPELINE_FRONTEND_DIR/nrp-dev/"* "$NEW_ENV_DIR/"
-                    echo "✅ Initial .env files copied from 'dev' to new environment."
+                    echo "Initial .env files copied from 'dev' to new environment."
                 else
-                    echo "⚠️ Warning: 'nrp-dev' environment not found to copy initial .env files from."
+                    echo "Warning: 'nrp-dev' environment not found to copy initial .env files from."
                     echo "Please manually configure .env files and module-federation.manifest.json in '$NEW_ENV_DIR' for each microfrontend."
                 fi
                 break
@@ -337,14 +337,14 @@ for repo_index_str in "${SELECTED_REPO_NUMS[@]}"; do
                 UI_BUILD_ENV_CHOSEN="${AVAILABLE_ENVS[$((ENV_NUM_CHOICE-1))]}"
                 break
             else
-                echo "❌ Invalid input. Please enter a valid number."
+                echo "Invalid input. Please enter a valid number."
             fi
         done
         BRANCH_CHOICES["spriced-ui-env"]="$UI_BUILD_ENV_CHOSEN"
     fi
 
     # Prompt for branch name
-    read -rp "🌿 Enter branch name for $REPO_NAME [default: $DEFAULT_BRANCH]: " USER_BRANCH_INPUT
+    read -rp "Enter branch name for $REPO_NAME [default: $DEFAULT_BRANCH]: " USER_BRANCH_INPUT
     BRANCH_INPUT_COLLECTED="${USER_BRANCH_INPUT:-$DEFAULT_BRANCH}"
     BRANCH_CHOICES["$REPO_NAME"]="$BRANCH_INPUT_COLLECTED"
 
@@ -368,24 +368,26 @@ done
 save_config
 
 # --- Phase 2: Parallel Execution ---
-readonly CPU_CORES=$(nproc)
-echo -e "\n🚀 Running ${#COMMANDS[@]} builds in parallel with load balancing to keep CPU usage below 100%..."
+
+CPU_CORES=$(nproc)
+# Calculate max jobs = 80% of available cores (rounded up)
+MAX_JOBS=$(( (CPU_CORES * 80 + 99) / 100 ))
+
+echo -e "\n🚀 Running ${#COMMANDS[@]} builds in parallel, limited to ~80% of CPU capacity..."
 
 if [ ${#COMMANDS[@]} -eq 0 ]; then
     echo "No parallel commands to execute. Exiting."
     exit 0
 fi
 
-# Ensure parallel's output is not mixed up with script's output
-set +e
-printf "%s\n" "${COMMANDS[@]}" | parallel -j "$CPU_CORES" --load 100% --no-notice --bar
+set +e # Temporarily disable 'exit on error' for the parallel command
+printf "%s\n" "${COMMANDS[@]}" | parallel -j "$MAX_JOBS" --load 80% --no-notice --bar
 PARALLEL_EXIT_CODE=$?
-set -e
-
+set -e # Re-enable 'exit on error'
 readonly END_TIME=$(date +"%Y-%m-%d %H:%M:%S")
 
 # === Phase 3: Summary Output ===
-echo -e "\n🧾 Build Summary:\n"
+echo -e "\nBuild Summary:\n"
 readonly SUMMARY_CSV_FILE="$LOG_DIR/build-summary-${DATE_TAG}.csv"
 
 if [[ -f "$TRACKER_FILE" ]]; then
@@ -395,21 +397,21 @@ if [[ -f "$TRACKER_FILE" ]]; then
         echo "---"
         echo "Status,Repository,Log File"
     } > "$SUMMARY_CSV_FILE"
-    
+
     while IFS=',' read -r REPO STATUS LOGFILE; do
         if [[ "$STATUS" == "SUCCESS" ]]; then
-            echo "[✔️ DONE] $REPO - see log: $LOGFILE"
+            echo "[DONE] $REPO - see log: $LOGFILE"
         else
-            echo "[❌ FAIL] $REPO - see log: $LOGFILE"
+            echo "[FAIL] $REPO - see log: $LOGFILE"
         fi
         echo "$STATUS,$REPO,$LOGFILE" >> "$SUMMARY_CSV_FILE"
     done < "$TRACKER_FILE"
 else
-    echo "⚠️ Build tracker not found: $TRACKER_FILE"
+    echo "Build tracker not found: $TRACKER_FILE"
     echo "Script execution was likely interrupted. No summary was generated."
 fi
 
-echo "📄 Detailed build summary also available at: $SUMMARY_CSV_FILE"
-echo -e "\n✅ Script execution complete."
+echo "Detailed build summary also available at: $SUMMARY_CSV_FILE"
+echo -e "\nScript execution complete."
 exit "$PARALLEL_EXIT_CODE"
 

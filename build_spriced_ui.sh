@@ -1,8 +1,8 @@
-k#!/bin/bash
+#!/bin/bash
 set -Eeuo pipefail
 
 # Trap command that removes the build directory on script failure.
-trap 'if [ -d "$BUILD_DIR" ]; then rm -rf "$BUILD_DIR"; echo "[❌ CLEANUP] Removed temporary build directory: $BUILD_DIR"; fi; exit 1' ERR
+trap 'if [ -d "$BUILD_DIR" ]; then rm -rf "$BUILD_DIR"; echo "[ CLEANUP] Removed temporary build directory: $BUILD_DIR"; fi; exit 1' ERR
 
 # === Script Arguments ===
 # ENV: Environment name (e.g., dev, qa, prasanth)
@@ -14,12 +14,12 @@ BASE_DIR="${3:-$HOME/automation_workspace}"
 
 # === Input Validation ===
 if [[ -z "$ENV" || -z "$BRANCH" || -z "$BASE_DIR" ]]; then
-    echo "❌ Missing required arguments. Usage: $0 <env_name> <branch_name> <base_dir>"
+    echo "Missing required arguments. Usage: $0 <env_name> <branch_name> <base_dir>"
     exit 1
 fi
 
 # Check for npx command
-command -v npx >/dev/null || { echo "❌ 'npx' not found. Install Node.js first."; exit 1; }
+command -v npx >/dev/null || { echo "'npx' not found. Install Node.js first."; exit 1; }
 
 # === Path Definitions ===
 REPO="spriced-ui"
@@ -47,7 +47,7 @@ echo "Starting UI build for ENV='$ENV', BRANCH='$BRANCH'..."
 echo "Build directory: $BUILD_DIR"
 
 # Step 1: Prepare the repository
-echo "[📦] Preparing '$REPO' repository..."
+echo "[ ] Preparing '$REPO' repository..."
 if [[ ! -d "$REPO_DIR/.git" ]]; then
     echo "  - Cloning from https://github.com/simaiserver/$REPO.git"
     git clone "https://github.com/simaiserver/$REPO.git" "$REPO_DIR"
@@ -60,9 +60,9 @@ git checkout "$BRANCH"
 git reset --hard "origin/$BRANCH"
 
 # Step 2: Inject .env files for the build process
-echo "[🔧] Injecting environment files from spriced-pipeline into repository..."
+echo "[ ] Injecting environment files from spriced-pipeline into repository..."
 if [ ! -d "$CONFIG_PIPELINE_BASE" ]; then
-    echo "❌ Missing environment configuration directory: $CONFIG_PIPELINE_BASE"
+    echo "Missing environment configuration directory: $CONFIG_PIPELINE_BASE"
     exit 1
 fi
 for mf in "${MICROFRONTENDS[@]}"; do
@@ -74,24 +74,24 @@ for mf in "${MICROFRONTENDS[@]}"; do
         cp "$SRC_ENV_FILE" "$DEST_ENV_FILE"
         echo "  - Applied env for '$mf'."
     else
-        echo "  - [⚠️] Missing .env for '$mf': $SRC_ENV_FILE"
+        echo "  - [ ] Missing .env for '$mf': $SRC_ENV_FILE"
     fi
 done
 
 # Step 3: Install Node dependencies
-echo "[🧩] Installing Node dependencies..."
+echo "[ ] Installing Node dependencies..."
 npm install
 
 # Step 4: Build projects using Nx
-echo "[🏗️] Building projects with Nx..."
+echo "[ ] Building projects with Nx..."
 rm -rf dist/
 npx nx run-many --target=build --projects=$(IFS=,; echo "${MICROFRONTENDS[*]}") --configuration=production
 
 # Step 5: Copy build artifacts to final destination and create symlink
-echo "[📂] Copying build artifacts to final destination..."
+echo "[ ] Copying build artifacts to final destination..."
 mkdir -p "$BUILD_DIR"
 if [ ! -d "$REPO_DIR/dist/apps" ]; then
-    echo "❌ Nx build output not found. The build may have failed."
+    echo "Nx build output not found. The build may have failed."
     exit 1
 fi
 
@@ -99,7 +99,7 @@ fi
 cp -r "$REPO_DIR/dist/apps/"* "$BUILD_DIR/"
 
 # Copy .env files to the final build output directory AND update their URLs
-echo "[🔧] Processing and copying .env files to final build directories..."
+echo "[ ] Processing and copying .env files to final build directories..."
 for mf in "${MICROFRONTENDS[@]}"; do
     SRC_ENV_FILE="$CONFIG_PIPELINE_BASE/$mf/.env"
     if [[ -f "$SRC_ENV_FILE" ]]; then
@@ -107,14 +107,14 @@ for mf in "${MICROFRONTENDS[@]}"; do
         sed "s/\.\(dev\)\.simadvisory\.com/\.${ENV}\.simadvisory\.com/g" "$SRC_ENV_FILE" > "$BUILD_DIR/$mf/.env"
         echo "  - Processed and copied .env for '$mf' to final output."
     else
-        echo "  - [⚠️] .env file not found for '$mf'. Skipping copy to final build."
+        echo "  - [ ] .env file not found for '$mf'. Skipping copy to final build."
     fi
 done
 
 # Process and copy the module federation manifest file
-echo "[📜] Processing and copying module-federation.manifest.json..."
+echo "[ ] Processing and copying module-federation.manifest.json..."
 if [ ! -f "$MANIFEST_SOURCE" ]; then
-    echo "❌ Manifest not found at $MANIFEST_SOURCE. Build artifacts may be incomplete."
+    echo "Manifest not found at $MANIFEST_SOURCE. Build artifacts may be incomplete."
     exit 1
 fi
 sed "s/\.\(dev\)\.simadvisory\.com/\.${ENV}\.simadvisory\.com/g" "$MANIFEST_SOURCE" > "$BUILD_DIR/module-federation.manifest.json"
@@ -127,8 +127,7 @@ if [ -e "$LATEST_LINK" ]; then
 fi
 ln -s "$BUILD_DIR" "$LATEST_LINK"
 
-echo "🎉 Build of spriced-ui completed successfully."
+echo "Build of spriced-ui completed successfully."
 echo "Final build output available at: $BUILD_DIR"
 echo "Symbolic link 'latest' created at: $LATEST_LINK"
 exit 0
-
