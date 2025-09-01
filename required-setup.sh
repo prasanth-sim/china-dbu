@@ -5,8 +5,6 @@ trap 'echo "[ ERROR] Line $LINENO: $BASH_COMMAND (exit $?)"' ERR
 # === Setup Script Context ===
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOG_PREFIX="[env-setup]"
-# Use a separate file to hold credentials specifically for this script's use
-CREDENTIALS_FILE="$SCRIPT_DIR/.git-credentials"
 
 log() {
   echo "$LOG_PREFIX $(date +'%F %T') $*"
@@ -28,6 +26,7 @@ sudo apt-get install -y maven
 # Node.js (prompt version)
 read -rp "Enter Node.js version to install [default: 18.20.6]: " NODE_VERSION
 NODE_VERSION="${NODE_VERSION:-18.20.6}"
+
 log "Installing Node.js $NODE_VERSION..."
 curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
 sudo apt-get install -y nodejs
@@ -37,17 +36,19 @@ sudo apt-get install -y parallel
 
 # === Git Credentials Setup ===
 log "Setting up Git credentials."
-# Only prompt for credentials if credentials file doesn't exist.
-if [[ ! -f "$CREDENTIALS_FILE" ]]; then
+USER_GIT_CREDENTIALS_FILE="$SCRIPT_DIR/.git-credentials"
+if [[ ! -f "$USER_GIT_CREDENTIALS_FILE" ]]; then
   read -p "Enter your GitHub username: " GIT_USERNAME
   read -s -p "Enter your GitHub personal access token (PAT): " GIT_TOKEN
   echo
-  echo "GIT_USERNAME=$GIT_USERNAME" > "$CREDENTIALS_FILE"
-  echo "GIT_TOKEN=$GIT_TOKEN" >> "$CREDENTIALS_FILE"
-  chmod 600 "$CREDENTIALS_FILE"
-  log "Credentials file created with credentials at $CREDENTIALS_FILE"
+  # Save credentials in the proper Git credential format in script directory
+  echo "https://${GIT_USERNAME}:${GIT_TOKEN}@github.com" > "$USER_GIT_CREDENTIALS_FILE"
+  chmod 600 "$USER_GIT_CREDENTIALS_FILE"
+  # Configure Git globally to use this credentials file
+  git config --global credential.helper "store --file=$USER_GIT_CREDENTIALS_FILE"
+  log "Git credentials saved to $USER_GIT_CREDENTIALS_FILE and credential helper configured."
 else
-  log "Credentials file already exists. Skipping prompt."
+  log "Git credentials file already exists at $USER_GIT_CREDENTIALS_FILE. Skipping prompt."
 fi
 
 # === Version Checks ===
