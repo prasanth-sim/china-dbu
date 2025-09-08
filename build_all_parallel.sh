@@ -1,6 +1,5 @@
 #!/bin/bash
 set -Eeuo pipefail
-# The original trap command with an emoji was removed as requested.
 
 # ==============================================================================
 # SCRIPT METADATA AND CONFIGURATION
@@ -183,7 +182,7 @@ if [[ -f "$REQUIRED_SETUP_SCRIPT" ]]; then
 fi
 
 # === Prompt for Base Directory ===
-readonly DEFAULT_BASE_INPUT="${BASE_INPUT:-"automation_workspace"}"
+readonly DEFAULT_BASE_INPUT="${BASE_INPUT:-"deployments"}"
 read -rp "Enter base directory for cloning/building/logs (relative to ~) [default: $DEFAULT_BASE_INPUT]: " USER_BASE_INPUT
 readonly BASE_INPUT="${USER_BASE_INPUT:-$DEFAULT_BASE_INPUT}"
 readonly BASE_DIR="$HOME/$BASE_INPUT"
@@ -203,6 +202,7 @@ declare -A REPO_URLS=(
     ["spriced-cdbu-2.0.301"]="https://github.com/simaiserver/spriced-cdbu-2.0.301.git"
     ["spriced-platform-data-management-layer"]="https://github.com/simaiserver/spriced-platform-data-management-layer.git"
     ["spriced-platform-ib-ob"]="https://github.com/simaiserver/spriced-platform-ib-ob.git"
+    ["spriced-pipeline"]="https://github.com/simaiserver/spriced-pipeline.git"
 )
 
 declare -A DEFAULT_BRANCHES=(
@@ -210,6 +210,7 @@ declare -A DEFAULT_BRANCHES=(
     ["spriced-cdbu-2.0.301"]="main"
     ["spriced-platform-data-management-layer"]="main"
     ["spriced-platform-ib-ob"]="develop"
+    ["spriced-pipeline"]="china_dbu_ui"
 )
 
 REPOS=(
@@ -265,20 +266,17 @@ for repo_index_str in "${SELECTED_REPO_NUMS[@]}"; do
 
     # Handle spriced-ui with its special environment prompt
     if [[ "$REPO_NAME" == "spriced-ui" ]]; then
-        # This section is kept verbose because it's highly specific to the spriced-ui build process.
-        readonly PIPELINE_DIR="$BASE_DIR/spriced-pipeline"
-        readonly PIPELINE_URL="https://github.com/simaiserver/spriced-pipeline.git"
+        readonly PIPELINE_DIR="$CLONE_DIR/spriced-pipeline"
+        readonly PIPELINE_URL="${REPO_URLS["spriced-pipeline"]}"
 
-        # Prepare spriced-pipeline repo
-        if [[ -d "$PIPELINE_DIR/.git" ]]; then
-            echo "Updating existing spriced-pipeline repo."
-            git -C "$PIPELINE_DIR" pull --quiet
-        else
-            echo "Cloning spriced-pipeline repo from $PIPELINE_URL into $PIPELINE_DIR."
-            git clone --quiet "$PIPELINE_URL" "$PIPELINE_DIR" || { echo "Failed to clone spriced-pipeline. Skipping spriced-ui build."; continue; }
+        PIPELINE_BRANCH_COLLECTED="${DEFAULT_BRANCHES["spriced-pipeline"]}"
+        BRANCH_CHOICES["spriced-pipeline"]="$PIPELINE_BRANCH_COLLECTED"
+
+        if ! prepare_repo "spriced-pipeline" "$PIPELINE_URL" "$PIPELINE_DIR" "$PIPELINE_BRANCH_COLLECTED"; then
+            echo "Failed to prepare spriced-pipeline. Skipping spriced-ui build."
+            unset SELECTED_REPOS_MAP["$REPO_NAME"]; continue
         fi
 
-        # Find available environments
         declare -a AVAILABLE_ENVS=()
         readonly PIPELINE_FRONTEND_DIR="$PIPELINE_DIR/framework/frontend"
         if [ ! -d "$PIPELINE_FRONTEND_DIR" ]; then
@@ -287,9 +285,9 @@ for repo_index_str in "${SELECTED_REPO_NUMS[@]}"; do
         fi
 
         while IFS= read -r -d '' dir; do
-            env_name=$(basename "$dir" | sed 's/nrp-//')
+            env_name=$(basename "$dir" | sed 's/china-//')
             AVAILABLE_ENVS+=("$env_name")
-        done < <(find "$PIPELINE_FRONTEND_DIR" -maxdepth 1 -type d -name "nrp-*" -print0)
+        done < <(find "$PIPELINE_FRONTEND_DIR" -maxdepth 1 -type d -name "china-*" -print0)
 
         echo -e "\nChoose environment for spriced-ui:"
         for env_idx in "${!AVAILABLE_ENVS[@]}"; do
@@ -311,6 +309,7 @@ for repo_index_str in "${SELECTED_REPO_NUMS[@]}"; do
             read -rp "Enter environment number [default: $DEFAULT_ENV_CHOICE]: " ENV_NUM_INPUT
             ENV_NUM_CHOICE="${ENV_NUM_INPUT:-$DEFAULT_ENV_CHOICE}"
 
+            # --- NEW LOGIC: Create New Environment ---
             if [[ "$ENV_NUM_CHOICE" =~ ^[0-9]+$ ]] && (( ENV_NUM_CHOICE == ${#AVAILABLE_ENVS[@]} + 1 )); then
                 read -rp "Enter new environment name (e.g., prasanth): " NEW_ENV_NAME
                 UI_BUILD_ENV_CHOSEN="$NEW_ENV_NAME"
@@ -318,21 +317,33 @@ for repo_index_str in "${SELECTED_REPO_NUMS[@]}"; do
                     echo "Environment name cannot be empty. Please try again."
                     continue
                 fi
-                NEW_ENV_DIR="$PIPELINE_FRONTEND_DIR/nrp-$UI_BUILD_ENV_CHOSEN"
+
+                # Hardcode SOURCE_ENV to "dev" as requested
+                SOURCE_ENV="dev"
+
+                readonly SOURCE_DIR="$PIPELINE_FRONTEND_DIR/china-$SOURCE_ENV"
+                readonly NEW_ENV_DIR="$PIPELINE_FRONTEND_DIR/china-$UI_BUILD_ENV_CHOSEN"
+
                 if [ -d "$NEW_ENV_DIR" ]; then
                     echo "Environment '$UI_BUILD_ENV_CHOSEN' already exists. Please choose a different name."
                     continue
                 fi
-                mkdir -p "$NEW_ENV_DIR"
-                echo "Created directory for new environment '$UI_BUILD_ENV_CHOSEN' in spriced-pipeline."
-                if [ -d "$PIPELINE_FRONTEND_DIR/nrp-dev" ]; then
-                    cp -r "$PIPELINE_FRONTEND_DIR/nrp-dev/"* "$NEW_ENV_DIR/"
-                    echo "Initial .env files copied from 'dev' to new environment."
-                else
-                    echo "Warning: 'nrp-dev' environment not found to copy initial .env files from."
-                    echo "Please manually configure .env files and module-federation.manifest.json in '$NEW_ENV_DIR' for each microfrontend."
+                if [[ ! -d "$SOURCE_DIR" ]]; then
+                    echo "Error: Source environment directory '$SOURCE_DIR' is missing. Cannot create new environment."
+                    unset SELECTED_REPOS_MAP["$REPO_NAME"]; continue 2
                 fi
+
+                echo "Creating new environment directory: $NEW_ENV_DIR"
+                cp -r "$SOURCE_DIR" "$NEW_ENV_DIR"
+                echo "Initial .env files and manifest copied from '$SOURCE_ENV'."
+
+                echo "Updating URLs in new environment files..."
+                # The corrected sed command. It now ignores NX_KEY_CLOAK_URL lines.
+                find "$NEW_ENV_DIR" -type f -name ".env" -exec sed -i -E "/NX_KEY_CLOAK_URL/!s/(https?:\/\/(cdbu-|reports\.cdbu-))?(dev|qa|uat|test|prasanth)(\.alpha)?\.simadvisory\.com/\1${NEW_ENV_NAME}\4.simadvisory.com/g" {} \;
+
+                echo "  - Updated all .env files in '$NEW_ENV_DIR'."
                 break
+
             elif [[ "$ENV_NUM_CHOICE" =~ ^[0-9]+$ ]] && (( ENV_NUM_CHOICE >= 1 && ENV_NUM_CHOICE <= ${#AVAILABLE_ENVS[@]} )); then
                 UI_BUILD_ENV_CHOSEN="${AVAILABLE_ENVS[$((ENV_NUM_CHOICE-1))]}"
                 break
@@ -414,4 +425,3 @@ fi
 echo "Detailed build summary also available at: $SUMMARY_CSV_FILE"
 echo -e "\nScript execution complete."
 exit "$PARALLEL_EXIT_CODE"
-

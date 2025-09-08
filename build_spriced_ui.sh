@@ -10,7 +10,7 @@ ENV="${1:-}"
 # BRANCH: Git branch to checkout
 BRANCH="${2:-main}"
 # BASE_DIR: Base directory for repos, builds, and logs
-BASE_DIR="${3:-$HOME/automation_workspace}"
+BASE_DIR="${3:-$HOME/deployments}"
 
 # === Input Validation ===
 if [[ -z "$ENV" || -z "$BRANCH" || -z "$BASE_DIR" ]]; then
@@ -29,8 +29,8 @@ TIMESTAMP=$(date '+%Y%m%d_%H%M%S')
 BUILD_DIR="$BUILD_OUTPUT_ROOT_DIR/$TIMESTAMP"
 
 # Paths to the spriced-pipeline repository files
-PIPELINE_DIR="$BASE_DIR/spriced-pipeline"
-CONFIG_PIPELINE_BASE="$PIPELINE_DIR/framework/frontend/nrp-$ENV"
+PIPELINE_DIR="$BASE_DIR/repos/spriced-pipeline"
+CONFIG_PIPELINE_BASE="$PIPELINE_DIR/framework/frontend/china-$ENV"
 MANIFEST_SOURCE="$CONFIG_PIPELINE_BASE/module-federation.manifest.json"
 
 # List of microfrontends
@@ -98,27 +98,17 @@ fi
 # Copy all the built applications
 cp -r "$REPO_DIR/dist/apps/"* "$BUILD_DIR/"
 
-# Copy .env files to the final build output directory AND update their URLs
+# Copy .env files to the final build output directory
 echo "[ ] Processing and copying .env files to final build directories..."
 for mf in "${MICROFRONTENDS[@]}"; do
     SRC_ENV_FILE="$CONFIG_PIPELINE_BASE/$mf/.env"
     if [[ -f "$SRC_ENV_FILE" ]]; then
-        # Use sed to replace the dev environment URL with the chosen one and save to the build directory
-        sed "s/\.\(dev\)\.simadvisory\.com/\.${ENV}\.simadvisory\.com/g" "$SRC_ENV_FILE" > "$BUILD_DIR/$mf/.env"
-        echo "  - Processed and copied .env for '$mf' to final output."
+        cp "$SRC_ENV_FILE" "$BUILD_DIR/$mf/.env"
+        echo "  - Copied .env for '$mf' to final output."
     else
         echo "  - [ ] .env file not found for '$mf'. Skipping copy to final build."
     fi
 done
-
-# Process and copy the module federation manifest file
-echo "[ ] Processing and copying module-federation.manifest.json..."
-if [ ! -f "$MANIFEST_SOURCE" ]; then
-    echo "Manifest not found at $MANIFEST_SOURCE. Build artifacts may be incomplete."
-    exit 1
-fi
-sed "s/\.\(dev\)\.simadvisory\.com/\.${ENV}\.simadvisory\.com/g" "$MANIFEST_SOURCE" > "$BUILD_DIR/module-federation.manifest.json"
-echo "  - Manifest processed and copied."
 
 # Create a symlink to the latest build
 LATEST_LINK="$BUILD_OUTPUT_ROOT_DIR/latest"
